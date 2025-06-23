@@ -15,10 +15,23 @@ import "react-vertical-timeline-component/style.min.css";
 import moment from "moment";
 import quote from "./quote";
 import Loader from "react-loader-spinner";
-import LazyEmbed from './LazyEmbed'
+import LazyEmbed from "./LazyEmbed";
 
 // Dynamically import ParticlesBg to avoid SSR issues
 const ParticlesBg = dynamic(() => import("particles-bg"), { ssr: false });
+
+// SEO Keywords and metadata
+const SEO_CONFIG = {
+  title:
+    "KSHRD Student Voice | Korean Software HRD Center | Raden HRD Learning Journey",
+  description:
+    "Discover the learning journey at KSHRD (Korean Software HRD Center). Listen to student voices, experiences, and testimonials from HRD Center programs. Raden's educational portfolio showcasing software development skills learned at Korean Software HRD Center.",
+  keywords:
+    "raden, HRD Center, HRD, hrd, kshrd, KSHRD, Korean Software HRD Center, software development, programming education, student voice, learning journey, Cambodia tech education, coding bootcamp, software engineering training",
+  author: "Raden - KSHRD Student",
+  url: typeof window !== "undefined" ? window.location.href : "",
+  siteName: "KSHRD Student Portfolio - Raden",
+};
 
 class HomePage extends Component {
   constructor(props) {
@@ -53,6 +66,71 @@ class HomePage extends Component {
       this.audioRef.src = "";
     }
   }
+
+  // Add structured data for better SEO
+  addStructuredData = () => {
+    const structuredData = {
+      "@context": "https://schema.org",
+      "@type": "EducationalOrganization",
+      name: "Korean Software HRD Center (KSHRD)",
+      alternateName: ["KSHRD", "HRD Center", "Korean Software HRD Center"],
+      description:
+        "Leading software development training center in Cambodia, providing comprehensive programming education and HRD services.",
+      url: SEO_CONFIG.url,
+      sameAs: [
+        "https://www.radenhor.com",
+      ],
+      location: {
+        "@type": "Place",
+        name: "Phnom Penh, Cambodia",
+        address: {
+          "@type": "PostalAddress",
+          addressCountry: "KH",
+          addressLocality: "Phnom Penh",
+        },
+      },
+      hasOfferCatalog: {
+        "@type": "OfferCatalog",
+        name: "Software Development Programs",
+        itemListElement: [
+          {
+            "@type": "Course",
+            name: "Software Development Training",
+            description:
+              "Comprehensive software development and programming training at KSHRD",
+            provider: {
+              "@type": "Organization",
+              name: "Korean Software HRD Center",
+            },
+          },
+        ],
+      },
+    };
+
+    const personData = {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: "Raden",
+      description:
+        "Software development student at Korean Software HRD Center (KSHRD)",
+      alumniOf: {
+        "@type": "EducationalOrganization",
+        name: "Korean Software HRD Center (KSHRD)",
+      },
+      url: SEO_CONFIG.url,
+    };
+
+    // Add to head
+    const script1 = document.createElement("script");
+    script1.type = "application/ld+json";
+    script1.text = JSON.stringify(structuredData);
+    document.head.appendChild(script1);
+
+    const script2 = document.createElement("script");
+    script2.type = "application/ld+json";
+    script2.text = JSON.stringify(personData);
+    document.head.appendChild(script2);
+  };
 
   loadAudio = () => {
     try {
@@ -191,9 +269,7 @@ class HomePage extends Component {
           disabled={!audioReady}
         >
           {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-          <span style={{ marginLeft: 8 }}>
-            {isPlaying ? "Pause" : "Play"}
-          </span>
+          <span style={{ marginLeft: 8 }}>{isPlaying ? "Pause" : "Play"}</span>
         </button>
       );
     }

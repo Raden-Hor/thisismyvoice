@@ -1,5 +1,5 @@
 import { useInView } from 'react-intersection-observer';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function LazyEmbed({ src, contentType, ratio = '4:3' }) {
     const { ref, inView } = useInView({
