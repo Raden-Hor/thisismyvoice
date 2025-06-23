@@ -3,17 +3,17 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   experimental: {
-    esmExternals: 'loose'
+    esmExternals: "loose",
   },
   webpack: (config, { isServer }) => {
     // Handle audio files
     config.module.rules.push({
       test: /\.(mp3|wav|ogg)$/,
       use: {
-        loader: 'file-loader',
+        loader: "file-loader",
         options: {
-          publicPath: '/_next/static/sounds/',
-          outputPath: 'static/sounds/',
+          publicPath: "/_next/static/sounds/",
+          outputPath: "static/sounds/",
         },
       },
     });
@@ -39,6 +39,7 @@ const nextConfig = {
 
     return config;
   },
+  output: "standalone", // Ensure static export mode
 };
 
 export default nextConfig;
