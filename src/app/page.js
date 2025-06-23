@@ -12,7 +12,6 @@ import {
   VerticalTimelineElement,
 } from "react-vertical-timeline-component";
 import "react-vertical-timeline-component/style.min.css";
-import ResponsiveEmbed from "react-responsive-embed";
 import moment from "moment";
 import quote from "./quote";
 import Loader from "react-loader-spinner";
