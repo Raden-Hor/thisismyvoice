@@ -1,14 +1,13 @@
-// app/api/minio/list/route.js (or pages/api/minio/list.js if using Pages Router)
 import * as Minio from "minio";
-
-const minioClient = new Minio.Client({
-  endPoint: process.env.NEXT_PUBLIC_S3_URL,
-  accessKey: process.env.NEXT_PUBLIC_MINIO_ACCESS_KEY,
-  secretKey: process.env.NEXT_PUBLIC_MINIO_SECRET_KEY,
-});
 
 export async function GET() {
   try {
+    const minioClient = new Minio.Client({
+      endPoint: process.env.NEXT_PUBLIC_S3_URL,
+      accessKey: process.env.NEXT_PUBLIC_MINIO_ACCESS_KEY,
+      secretKey: process.env.NEXT_PUBLIC_MINIO_SECRET_KEY,
+    });
+
     const objects = [];
 
     return new Promise((resolve, reject) => {
@@ -23,14 +22,6 @@ export async function GET() {
       });
 
       stream.on("end", async function () {
-        objects.map(async (item) => {
-          const presignedUrl = await minioClient.presignedGetObject(
-            process.env.NEXT_PUBLIC_BUCKET_NAME,
-            item.name,
-            24 * 60 * 60
-          );
-          console.log(presignedUrl);
-        });
         const objectsWithUrls = await Promise.all(
           objects.map(async (item) => {
             try {
@@ -39,7 +30,6 @@ export async function GET() {
                 item.name,
                 24 * 60 * 60
               );
-              console.log(`Generated URL for ${item.name}:`, presignedUrl);
 
               return {
                 ...item,
