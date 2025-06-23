@@ -30,10 +30,14 @@ export async function GET() {
                 item.name,
                 24 * 60 * 60
               );
+              const stat = await minioClient.statObject(process.env.NEXT_PUBLIC_BUCKET_NAME, item.name);
+              const contentType =
+                stat.metaData["content-type"] || stat.metaData["Content-Type"];
 
               return {
                 ...item,
                 url: presignedUrl,
+                contentType
               };
             } catch (error) {
               console.error(`Error generating URL for ${item.name}:`, error);

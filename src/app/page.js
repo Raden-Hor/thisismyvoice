@@ -16,6 +16,7 @@ import ResponsiveEmbed from "react-responsive-embed";
 import moment from "moment";
 import quote from "./quote";
 import Loader from "react-loader-spinner";
+import LazyEmbed from './LazyEmbed'
 
 // Dynamically import ParticlesBg to avoid SSR issues
 const ParticlesBg = dynamic(() => import("particles-bg"), { ssr: false });
@@ -57,14 +58,13 @@ class HomePage extends Component {
   loadAudio = () => {
     try {
       this.audioRef = new Audio("/mysong.mp3");
-      
+
       // Bind event handlers
       this.audioRef.addEventListener("ended", this.handleAudioEnd);
       this.audioRef.addEventListener("loadeddata", this.handleAudioLoaded);
       this.audioRef.addEventListener("error", this.handleAudioError);
       this.audioRef.addEventListener("play", this.handleAudioPlay);
       this.audioRef.addEventListener("pause", this.handleAudioPause);
-      
     } catch (error) {
       console.log("Audio loading failed:", error);
     }
@@ -72,9 +72,9 @@ class HomePage extends Component {
 
   handleAudioLoaded = () => {
     console.log("Audio loaded successfully");
-    this.setState({ 
-      audioLoaded: true, 
-      audioReady: true 
+    this.setState({
+      audioLoaded: true,
+      audioReady: true,
     });
   };
 
@@ -174,7 +174,7 @@ class HomePage extends Component {
 
   renderAudioControls() {
     const { audioReady, isPlaying, showPlayButton } = this.state;
-    
+
     if (!audioReady) {
       return (
         <div style={styles.audioControl}>
@@ -186,14 +186,14 @@ class HomePage extends Component {
 
     if (showPlayButton || !isPlaying) {
       return (
-        <button 
+        <button
           style={styles.audioButton}
           onClick={this.handlePlayAudio}
           disabled={!audioReady}
         >
           {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
           <span style={{ marginLeft: 8 }}>
-            {isPlaying ? "Pause Background Music" : "Play Background Music"}
+            {isPlaying ? "Pause" : "Play"}
           </span>
         </button>
       );
@@ -202,11 +202,8 @@ class HomePage extends Component {
     return (
       <div style={styles.audioControl}>
         <VolumeUpIcon style={{ marginRight: 8 }} />
-        <span>Background music playing...</span>
-        <button 
-          style={styles.smallButton}
-          onClick={this.handlePlayAudio}
-        >
+        <span>Playing...</span>
+        <button style={styles.smallButton} onClick={this.handlePlayAudio}>
           <PauseIcon />
         </button>
       </div>
@@ -237,12 +234,12 @@ class HomePage extends Component {
               iconStyle={{ background: "rgb(33, 150, 243)", color: "#fff" }}
               icon={<SchoolIcon />}
             >
-              <ResponsiveEmbed
+              <LazyEmbed
                 src={
                   data.url || data.publicUrl || `/api/minio/file/${data.name}`
                 }
+                contentType={data.contentType}
                 ratio="4:3"
-                allowFullScreen
               />
               <h3 className="vertical-timeline-element-title">
                 Title: {data.name.split(".")[0]}
