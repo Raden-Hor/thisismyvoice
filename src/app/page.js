@@ -17,32 +17,55 @@ import quote from "./quote";
 import Loader from "react-loader-spinner";
 import LazyEmbed from './LazyEmbed'
 
-// Dynamically import ParticlesBg to avoid SSR issues
-const ParticlesBg = dynamic(() => import("particles-bg"), { ssr: false });
+// Dynamically import ParticlesBg - disabled on mobile for performance
+const ParticlesBg = dynamic(() => import("particles-bg"), { 
+  ssr: false,
+  loading: () => null
+});
+
+// Constants for performance optimization
+const ITEMS_PER_PAGE = 15;
 
 class HomePage extends Component {
   constructor(props) {
     super(props);
+    
+    // Pre-generate colors to avoid repeated calculations
+    this.colorCache = this.generateColorCache(100);
+    this.quoteCache = this.generateQuoteCache(100);
+    
     this.state = {
       data: [],
+      displayedItems: ITEMS_PER_PAGE,
       audioLoaded: false,
       audioReady: false,
       isPlaying: false,
       showPlayButton: true,
       loading: true,
+      isLoadingMore: false,
+      isMobile: false,
     };
     this.audioRef = null;
+    this.timelineRef = React.createRef();
   }
 
   componentDidMount() {
+    // Detect mobile device
+    this.detectMobile();
+    
     // Load audio
     this.loadAudio();
 
     // Fetch data
     this.fetchData();
+
+    // Add scroll listener for infinite loading
+    window.addEventListener('scroll', this.handleScroll);
   }
 
   componentWillUnmount() {
+    window.removeEventListener('scroll', this.handleScroll);
+    
     if (this.audioRef) {
       this.audioRef.removeEventListener("ended", this.handleAudioEnd);
       this.audioRef.removeEventListener("loadeddata", this.handleAudioLoaded);
@@ -53,6 +76,79 @@ class HomePage extends Component {
       this.audioRef.src = "";
     }
   }
+
+  detectMobile = () => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+      || window.innerWidth <= 768;
+    this.setState({ isMobile });
+  };
+
+  // Pre-generate colors to avoid repeated random calculations
+  generateColorCache = (count) => {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+      colors.push({
+        r: Math.floor(Math.random() * 250),
+        g: Math.floor(Math.random() * 250),
+        b: Math.floor(Math.random() * 250)
+      });
+    }
+    return colors;
+  };
+
+  // Pre-generate quotes to avoid repeated random selections
+  generateQuoteCache = (count) => {
+    const quotes = [];
+    for (let i = 0; i < count; i++) {
+      const randomIndex = Math.floor(Math.random() * quote.quotes.length);
+      quotes.push(quote.quotes[randomIndex].quote);
+    }
+    return quotes;
+  };
+
+  // Throttle utility function
+  throttle = (func, limit) => {
+    let inThrottle;
+    return function() {
+      const args = arguments;
+      const context = this;
+      if (!inThrottle) {
+        func.apply(context, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    }
+  };
+
+  // Throttled scroll handler for infinite loading
+  handleScroll = this.throttle(() => {
+    if (this.state.isLoadingMore || this.state.displayedItems >= this.state.data.length) {
+      return;
+    }
+
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+
+    if (scrollTop + windowHeight >= documentHeight - 1000) {
+      this.loadMoreItems();
+    }
+  }, 100);
+
+  loadMoreItems = () => {
+    this.setState({ isLoadingMore: true });
+    
+    // Simulate loading delay for UX
+    setTimeout(() => {
+      this.setState(prevState => ({
+        displayedItems: Math.min(
+          prevState.displayedItems + ITEMS_PER_PAGE,
+          prevState.data.length
+        ),
+        isLoadingMore: false
+      }));
+    }, 300);
+  };
 
   loadAudio = () => {
     try {
@@ -91,14 +187,12 @@ class HomePage extends Component {
   };
 
   handleAudioEnd = () => {
-    // Loop the audio
     if (this.audioRef) {
       this.audioRef.currentTime = 0;
       this.audioRef.play().catch(console.error);
     }
   };
 
-  // Handle user click to start audio
   handlePlayAudio = async () => {
     if (!this.audioRef || !this.state.audioReady) {
       console.log("Audio not ready");
@@ -119,17 +213,14 @@ class HomePage extends Component {
 
   fetchData = async () => {
     try {
-      // Call API route instead of using Minio client directly
       const response = await fetch("/api/minio/list");
       const data = await response.json();
       if (data.success) {
         // Sort files by date extracted from filename (newest first)
         const sortedData = data.objects.sort((a, b) => {
-          const dateA =
-            this.extractDateFromFilename(a.name) || new Date(a.lastModified);
-          const dateB =
-            this.extractDateFromFilename(b.name) || new Date(b.lastModified);
-          return dateB - dateA; // Newest first
+          const dateA = this.extractDateFromFilename(a.name) || new Date(a.lastModified);
+          const dateB = this.extractDateFromFilename(b.name) || new Date(b.lastModified);
+          return dateB - dateA;
         });
 
         this.setState({ data: sortedData, loading: false });
@@ -143,31 +234,25 @@ class HomePage extends Component {
     }
   };
 
-  randomColor() {
-    return Math.floor(Math.random() * Math.floor(250));
+  // Use cached colors instead of generating random colors each time
+  getColor(index) {
+    return this.colorCache[index % this.colorCache.length];
   }
 
-  getQuote() {
-    let randomIndex = Math.floor(
-      Math.random() * Math.floor(quote.quotes.length - 1)
-    );
-    return quote.quotes[randomIndex].quote;
+  // Use cached quotes instead of generating random quotes each time
+  getQuote(index) {
+    return this.quoteCache[index % this.quoteCache.length];
   }
 
   extractDateFromFilename(filename) {
-    // Extract date from filename prefix (format: YYYYMMDD)
     const dateMatch = filename.match(/^(\d{8})/);
     if (dateMatch) {
       const dateStr = dateMatch[1];
       const year = dateStr.substring(0, 4);
       const month = dateStr.substring(4, 6);
       const day = dateStr.substring(6, 8);
-
-      // Create date object (month is 0-indexed in JavaScript)
       return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     }
-
-    // Fallback to lastModified if no date prefix found
     return null;
   }
 
@@ -210,51 +295,80 @@ class HomePage extends Component {
   }
 
   renderVoiceTimeline() {
+    const { data, displayedItems, isLoadingMore } = this.state;
+    const itemsToShow = data.slice(0, displayedItems);
+
     return (
-      <VerticalTimeline>
-        {this.state.data.map((data, index) => {
-          const fileDate =
-            this.extractDateFromFilename(data.name) ||
-            new Date(data.lastModified);
-          return (
-            <VerticalTimelineElement
-              key={index}
-              className="vertical-timeline-element--work"
-              contentStyle={{
-                background: `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`,
-                color: index % 2 === 0 ? "#000" : "#FFF",
-              }}
-              contentArrowStyle={{ borderRight: "7px solid rgb(33, 150, 243)" }}
-              date={
-                moment(fileDate).format("ddd MMMM Do YYYY, h:mm:ss a") +
-                " -- " +
-                moment(fileDate).startOf("day").fromNow()
-              }
-              iconStyle={{ background: "rgb(33, 150, 243)", color: "#fff" }}
-              icon={<SchoolIcon />}
-            >
-              <LazyEmbed
-                src={
-                  data.url || data.publicUrl || `/api/minio/file/${data.name}`
+      <>
+        <VerticalTimeline ref={this.timelineRef}>
+          {itemsToShow.map((item, index) => {
+            const fileDate = this.extractDateFromFilename(item.name) || new Date(item.lastModified);
+            const color = this.getColor(index);
+            
+            return (
+              <VerticalTimelineElement
+                key={`${item.name}-${index}`} // More stable key
+                className="vertical-timeline-element--work"
+                contentStyle={{
+                  background: `rgb(${color.r}, ${color.g}, ${color.b})`,
+                  color: index % 2 === 0 ? "#000" : "#FFF",
+                }}
+                contentArrowStyle={{ borderRight: "7px solid rgb(33, 150, 243)" }}
+                date={
+                  moment(fileDate).format("ddd MMMM Do YYYY, h:mm:ss a") +
+                  " -- " +
+                  moment(fileDate).startOf("day").fromNow()
                 }
-                contentType={data.contentType}
-                ratio="4:3"
-              />
-              <h3 className="vertical-timeline-element-title">
-                Title: {data.name.split(".")[0]}
-              </h3>
-              <h4 className="vertical-timeline-element-subtitle">
-                Size: {(data.size / 1024 / 1024).toFixed(2)} MB
-              </h4>
-              <p>{this.getQuote()}</p>
+                iconStyle={{ background: "rgb(33, 150, 243)", color: "#fff" }}
+                icon={<SchoolIcon />}
+              >
+                <LazyEmbed
+                  src={item.url || item.publicUrl || `/api/minio/file/${item.name}`}
+                  contentType={item.contentType}
+                  ratio="16:9" // Better mobile ratio
+                />
+                <h3 className="vertical-timeline-element-title">
+                  Title: {item.name.split(".")[0]}
+                </h3>
+                <h4 className="vertical-timeline-element-subtitle">
+                  Size: {(item.size / 1024 / 1024).toFixed(2)} MB
+                </h4>
+                <p>{this.getQuote(index)}</p>
+              </VerticalTimelineElement>
+            );
+          })}
+          
+          {isLoadingMore && (
+            <VerticalTimelineElement
+              iconStyle={{ background: "rgb(255, 165, 0)", color: "#fff" }}
+              icon={<div style={{ fontSize: '12px' }}>...</div>}
+            >
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <Loader
+                  type="TailSpin"
+                  color="#00BFFF"
+                  height={40}
+                  width={40}
+                />
+                <p>Loading more items...</p>
+              </div>
             </VerticalTimelineElement>
-          );
-        })}
-        <VerticalTimelineElement
-          iconStyle={{ background: "rgb(16, 204, 82)", color: "#fff" }}
-          icon={<StarIcon />}
-        />
-      </VerticalTimeline>
+          )}
+          
+          <VerticalTimelineElement
+            iconStyle={{ background: "rgb(16, 204, 82)", color: "#fff" }}
+            icon={<StarIcon />}
+          />
+        </VerticalTimeline>
+
+        {displayedItems < data.length && !isLoadingMore && (
+          <div style={styles.loadMoreContainer}>
+            <button style={styles.loadMoreButton} onClick={this.loadMoreItems}>
+              Load More ({data.length - displayedItems} remaining)
+            </button>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -272,6 +386,8 @@ class HomePage extends Component {
   }
 
   render() {
+    const { loading, isMobile } = this.state;
+    
     return (
       <>
         <Head>
@@ -290,49 +406,67 @@ class HomePage extends Component {
             display: "flex",
             flex: 1,
             flexDirection: "column",
-            height: this.state.loading ? "100vh" : "auto",
+            height: loading ? "100vh" : "auto",
             justifyContent: "center",
           }}
         >
-          {/* Background particles */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100vw",
-              height: "100vh",
-              zIndex: -1,
-            }}
-          >
-            <ParticlesBg type="random" bg={true} />
-          </div>
+          {/* Background particles - disabled on mobile for performance */}
+          {!isMobile && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: -1,
+              }}
+            >
+              <ParticlesBg type="random" bg={true} />
+            </div>
+          )}
 
-          {/* Audio controls - positioned at top right */}
-          <div style={styles.audioControlContainer}>
+          {/* Mobile-friendly gradient background */}
+          {isMobile && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: -1,
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              }}
+            />
+          )}
+
+          {/* Audio controls */}
+          <div style={isMobile ? styles.mobileAudioContainer : styles.audioControlContainer}>
             {this.renderAudioControls()}
           </div>
 
           <h1
             style={{
               textAlign: "center",
-              color: `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`,
-              fontSize: 50,
+              color: isMobile ? "#fff" : `rgb(${this.getColor(0).r}, ${this.getColor(0).g}, ${this.getColor(0).b})`,
+              fontSize: isMobile ? 28 : 50,
+              padding: isMobile ? "0 20px" : "0",
+              textShadow: isMobile ? "2px 2px 4px rgba(0,0,0,0.5)" : "none",
             }}
           >
             ♥️នេះគឺជាសម្លេងរបស់ខ្ញុំក្នុងសាលារៀន KSHRD♥️
           </h1>
 
-          {this.state.loading
-            ? this.renderSpinner()
-            : this.renderVoiceTimeline()}
+          {loading ? this.renderSpinner() : this.renderVoiceTimeline()}
         </div>
       </>
     );
   }
 }
 
-// Styles for audio controls
+export default HomePage;
+// Enhanced styles with mobile optimizations
 const styles = {
   audioControlContainer: {
     position: "fixed",
@@ -342,6 +476,15 @@ const styles = {
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     borderRadius: 8,
     padding: 12,
+  },
+  mobileAudioContainer: {
+    position: "fixed",
+    top: 10,
+    right: 10,
+    zIndex: 1000,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    borderRadius: 6,
+    padding: 8,
   },
   audioButton: {
     display: "flex",
@@ -373,6 +516,21 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
+  loadMoreContainer: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "40px 20px",
+  },
+  loadMoreButton: {
+    backgroundColor: "#2196F3",
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    padding: "15px 30px",
+    fontSize: "16px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    transition: "background-color 0.3s",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+  },
 };
-
-export default HomePage;
