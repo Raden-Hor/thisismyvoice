@@ -15,9 +15,9 @@ import Loader from "react-loader-spinner";
 import LazyEmbed from "./LazyEmbed";
 
 // Dynamically import ParticlesBg with reduced rendering
-const ParticlesBg = dynamic(() => import("particles-bg"), { 
+const ParticlesBg = dynamic(() => import("particles-bg"), {
   ssr: false,
-  loading: () => null // Prevent loading flash
+  loading: () => null, // Prevent loading flash
 });
 
 // SEO Keywords and metadata
@@ -39,7 +39,7 @@ class TimelineItem extends Component {
     super(props);
     this.state = {
       isVisible: false,
-      hasIntersected: false
+      hasIntersected: false,
     };
     this.itemRef = React.createRef();
   }
@@ -50,9 +50,9 @@ class TimelineItem extends Component {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && !this.state.hasIntersected) {
-            this.setState({ 
-              isVisible: true, 
-              hasIntersected: true 
+            this.setState({
+              isVisible: true,
+              hasIntersected: true,
             });
             // Disconnect observer after first intersection
             this.observer.unobserve(entry.target);
@@ -60,8 +60,8 @@ class TimelineItem extends Component {
         });
       },
       {
-        rootMargin: '100px 0px', // Load 100px before coming into view
-        threshold: 0.1
+        rootMargin: "100px 0px", // Load 100px before coming into view
+        threshold: 0.1,
       }
     );
 
@@ -90,15 +90,16 @@ class TimelineItem extends Component {
     const { isVisible, hasIntersected } = this.state;
 
     // Determine position based on index (left for even, right for odd)
-    const position = index % 2 === 0 ? 'left' : 'right';
-    
+    const position = index % 2 === 0 ? "left" : "right";
+
     // Adjust arrow direction based on position
-    const contentArrowStyle = position === 'left' 
-      ? { borderRight: "7px solid rgb(33, 150, 243)" }
-      : { borderLeft: "7px solid rgb(33, 150, 243)" };
+    const contentArrowStyle =
+      position === "left"
+        ? { borderRight: "7px solid rgb(33, 150, 243)" }
+        : { borderLeft: "7px solid rgb(33, 150, 243)" };
 
     return (
-      <div ref={this.itemRef}>
+      <div ref={this.itemRef} style={{ marginBottom: "40px" }}>
         <VerticalTimelineElement
           className="vertical-timeline-element--work"
           position={position}
@@ -133,7 +134,14 @@ class TimelineItem extends Component {
               <p>{this.props.quote}</p>
             </>
           ) : (
-            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                height: "200px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <div>Loading...</div>
             </div>
           )}
@@ -153,7 +161,7 @@ class HomePage extends Component {
       loading: true,
       particlesEnabled: true,
     };
-    
+
     // Pre-generate colors and quotes to avoid re-computation
     this.colorsAndQuotes = [];
   }
@@ -176,7 +184,7 @@ class HomePage extends Component {
     this.colorsAndQuotes = Array.from({ length: count }, (_, index) => ({
       backgroundColor: `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`,
       textColor: index % 2 === 0 ? "#000" : "#FFF",
-      quote: this.getQuote()
+      quote: this.getQuote(),
     }));
   };
 
@@ -190,9 +198,7 @@ class HomePage extends Component {
       description:
         "Leading software development training center in Cambodia, providing comprehensive programming education and HRD services.",
       url: SEO_CONFIG.url,
-      sameAs: [
-        "https://www.radenhor.com",
-      ],
+      sameAs: ["https://www.radenhor.com"],
       location: {
         "@type": "Place",
         name: "Phnom Penh, Cambodia",
@@ -309,11 +315,11 @@ class HomePage extends Component {
           const fileDate =
             this.extractDateFromFilename(data.name) ||
             new Date(data.lastModified);
-          
+
           const colorAndQuote = this.colorsAndQuotes[index] || {
-            backgroundColor: 'rgb(33, 150, 243)',
-            textColor: '#FFF',
-            quote: 'Loading...'
+            backgroundColor: "rgb(33, 150, 243)",
+            textColor: "#FFF",
+            quote: "Loading...",
           };
 
           return (
@@ -351,7 +357,7 @@ class HomePage extends Component {
 
   render() {
     const titleColor = `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`;
-    
+
     return (
       <>
         <Head>
