@@ -70,16 +70,6 @@ export default function LazyEmbed({ src, contentType, ratio = '4:3' }) {
                         zIndex: 10,
                     }}
                 >
-                    <div
-                        style={{
-                            width: '30px',
-                            height: '30px',
-                            border: '3px solid #f3f3f3',
-                            borderTop: '3px solid #2196F3',
-                            borderRadius: '50%',
-                            animation: 'spin 1s linear infinite',
-                        }}
-                    />
                 </div>
             )}
         </div>

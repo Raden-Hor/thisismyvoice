@@ -4,9 +4,6 @@ import Head from "next/head";
 import dynamic from "next/dynamic";
 import SchoolIcon from "@material-ui/icons/School";
 import StarIcon from "@material-ui/icons/Star";
-import PlayArrowIcon from "@material-ui/icons/PlayArrow";
-import PauseIcon from "@material-ui/icons/Pause";
-import VolumeUpIcon from "@material-ui/icons/VolumeUp";
 import {
   VerticalTimeline,
   VerticalTimelineElement,
@@ -17,8 +14,11 @@ import quote from "./quote";
 import Loader from "react-loader-spinner";
 import LazyEmbed from "./LazyEmbed";
 
-// Dynamically import ParticlesBg to avoid SSR issues
-const ParticlesBg = dynamic(() => import("particles-bg"), { ssr: false });
+// Dynamically import ParticlesBg with reduced rendering
+const ParticlesBg = dynamic(() => import("particles-bg"), { 
+  ssr: false,
+  loading: () => null // Prevent loading flash
+});
 
 // SEO Keywords and metadata
 const SEO_CONFIG = {
@@ -33,39 +33,152 @@ const SEO_CONFIG = {
   siteName: "KSHRD Student Portfolio - Raden",
 };
 
+// Memoized TimelineItem component
+class TimelineItem extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      isVisible: false,
+      hasIntersected: false
+    };
+    this.itemRef = React.createRef();
+  }
+
+  componentDidMount() {
+    // Intersection Observer for lazy loading
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !this.state.hasIntersected) {
+            this.setState({ 
+              isVisible: true, 
+              hasIntersected: true 
+            });
+            // Disconnect observer after first intersection
+            this.observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        rootMargin: '100px 0px', // Load 100px before coming into view
+        threshold: 0.1
+      }
+    );
+
+    if (this.itemRef.current) {
+      this.observer.observe(this.itemRef.current);
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+  }
+
+  shouldComponentUpdate(nextProps, nextState) {
+    // Only update if visibility changes or props change
+    return (
+      this.state.isVisible !== nextState.isVisible ||
+      this.state.hasIntersected !== nextState.hasIntersected ||
+      this.props.data !== nextProps.data
+    );
+  }
+
+  render() {
+    const { data, index, fileDate, backgroundColor, textColor } = this.props;
+    const { isVisible, hasIntersected } = this.state;
+
+    // Determine position based on index (left for even, right for odd)
+    const position = index % 2 === 0 ? 'left' : 'right';
+    
+    // Adjust arrow direction based on position
+    const contentArrowStyle = position === 'left' 
+      ? { borderRight: "7px solid rgb(33, 150, 243)" }
+      : { borderLeft: "7px solid rgb(33, 150, 243)" };
+
+    return (
+      <div ref={this.itemRef}>
+        <VerticalTimelineElement
+          className="vertical-timeline-element--work"
+          position={position}
+          contentStyle={{
+            background: backgroundColor,
+            color: textColor,
+          }}
+          contentArrowStyle={contentArrowStyle}
+          date={
+            moment(fileDate).format("ddd MMMM Do YYYY, h:mm:ss a") +
+            " -- " +
+            moment(fileDate).startOf("day").fromNow()
+          }
+          iconStyle={{ background: "rgb(33, 150, 243)", color: "#fff" }}
+          icon={<SchoolIcon />}
+        >
+          {hasIntersected && isVisible ? (
+            <>
+              <LazyEmbed
+                src={
+                  data.url || data.publicUrl || `/api/minio/file/${data.name}`
+                }
+                contentType={data.contentType}
+                ratio="4:3"
+              />
+              <h3 className="vertical-timeline-element-title">
+                Title: {data.name.split(".")[0]}
+              </h3>
+              <h4 className="vertical-timeline-element-subtitle">
+                Size: {(data.size / 1024 / 1024).toFixed(2)} MB
+              </h4>
+              <p>{this.props.quote}</p>
+            </>
+          ) : (
+            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div>Loading...</div>
+            </div>
+          )}
+        </VerticalTimelineElement>
+      </div>
+    );
+  }
+}
+
 class HomePage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       data: [],
-      audioLoaded: false,
-      audioReady: false,
       isPlaying: false,
       showPlayButton: true,
       loading: true,
+      particlesEnabled: true,
     };
-    this.audioRef = null;
+    
+    // Pre-generate colors and quotes to avoid re-computation
+    this.colorsAndQuotes = [];
   }
 
   componentDidMount() {
-    // Load audio
-    this.loadAudio();
-
     // Fetch data
     this.fetchData();
-  }
 
-  componentWillUnmount() {
-    if (this.audioRef) {
-      this.audioRef.removeEventListener("ended", this.handleAudioEnd);
-      this.audioRef.removeEventListener("loadeddata", this.handleAudioLoaded);
-      this.audioRef.removeEventListener("error", this.handleAudioError);
-      this.audioRef.removeEventListener("play", this.handleAudioPlay);
-      this.audioRef.removeEventListener("pause", this.handleAudioPause);
-      this.audioRef.pause();
-      this.audioRef.src = "";
+    // Add structured data
+    this.addStructuredData();
+
+    // Performance optimization: Disable particles on mobile
+    if (window.innerWidth < 768) {
+      this.setState({ particlesEnabled: false });
     }
   }
+
+  // Pre-generate colors and quotes to avoid re-computation
+  preGenerateColorsAndQuotes = (count) => {
+    this.colorsAndQuotes = Array.from({ length: count }, (_, index) => ({
+      backgroundColor: `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`,
+      textColor: index % 2 === 0 ? "#000" : "#FFF",
+      quote: this.getQuote()
+    }));
+  };
 
   // Add structured data for better SEO
   addStructuredData = () => {
@@ -132,69 +245,6 @@ class HomePage extends Component {
     document.head.appendChild(script2);
   };
 
-  loadAudio = () => {
-    try {
-      this.audioRef = new Audio("/mysong.mp3");
-
-      // Bind event handlers
-      this.audioRef.addEventListener("ended", this.handleAudioEnd);
-      this.audioRef.addEventListener("loadeddata", this.handleAudioLoaded);
-      this.audioRef.addEventListener("error", this.handleAudioError);
-      this.audioRef.addEventListener("play", this.handleAudioPlay);
-      this.audioRef.addEventListener("pause", this.handleAudioPause);
-    } catch (error) {
-      console.log("Audio loading failed:", error);
-    }
-  };
-
-  handleAudioLoaded = () => {
-    console.log("Audio loaded successfully");
-    this.setState({
-      audioLoaded: true,
-      audioReady: true,
-    });
-  };
-
-  handleAudioError = (e) => {
-    console.error("Audio failed to load:", e);
-    this.setState({ audioLoaded: false, audioReady: false });
-  };
-
-  handleAudioPlay = () => {
-    this.setState({ isPlaying: true });
-  };
-
-  handleAudioPause = () => {
-    this.setState({ isPlaying: false });
-  };
-
-  handleAudioEnd = () => {
-    // Loop the audio
-    if (this.audioRef) {
-      this.audioRef.currentTime = 0;
-      this.audioRef.play().catch(console.error);
-    }
-  };
-
-  // Handle user click to start audio
-  handlePlayAudio = async () => {
-    if (!this.audioRef || !this.state.audioReady) {
-      console.log("Audio not ready");
-      return;
-    }
-
-    try {
-      if (this.state.isPlaying) {
-        this.audioRef.pause();
-      } else {
-        await this.audioRef.play();
-        this.setState({ showPlayButton: false });
-      }
-    } catch (error) {
-      console.error("Play failed:", error);
-    }
-  };
-
   fetchData = async () => {
     try {
       // Call API route instead of using Minio client directly
@@ -209,6 +259,9 @@ class HomePage extends Component {
             this.extractDateFromFilename(b.name) || new Date(b.lastModified);
           return dateB - dateA; // Newest first
         });
+
+        // Pre-generate colors and quotes
+        this.preGenerateColorsAndQuotes(sortedData.length);
 
         this.setState({ data: sortedData, loading: false });
       } else {
@@ -249,42 +302,6 @@ class HomePage extends Component {
     return null;
   }
 
-  renderAudioControls() {
-    const { audioReady, isPlaying, showPlayButton } = this.state;
-
-    if (!audioReady) {
-      return (
-        <div style={styles.audioControl}>
-          <VolumeUpIcon style={{ marginRight: 8 }} />
-          <span>Loading audio...</span>
-        </div>
-      );
-    }
-
-    if (showPlayButton || !isPlaying) {
-      return (
-        <button
-          style={styles.audioButton}
-          onClick={this.handlePlayAudio}
-          disabled={!audioReady}
-        >
-          {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-          <span style={{ marginLeft: 8 }}>{isPlaying ? "Pause" : "Play"}</span>
-        </button>
-      );
-    }
-
-    return (
-      <div style={styles.audioControl}>
-        <VolumeUpIcon style={{ marginRight: 8 }} />
-        <span>Playing...</span>
-        <button style={styles.smallButton} onClick={this.handlePlayAudio}>
-          <PauseIcon />
-        </button>
-      </div>
-    );
-  }
-
   renderVoiceTimeline() {
     return (
       <VerticalTimeline>
@@ -292,38 +309,23 @@ class HomePage extends Component {
           const fileDate =
             this.extractDateFromFilename(data.name) ||
             new Date(data.lastModified);
+          
+          const colorAndQuote = this.colorsAndQuotes[index] || {
+            backgroundColor: 'rgb(33, 150, 243)',
+            textColor: '#FFF',
+            quote: 'Loading...'
+          };
+
           return (
-            <VerticalTimelineElement
-              key={index}
-              className="vertical-timeline-element--work"
-              contentStyle={{
-                background: `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`,
-                color: index % 2 === 0 ? "#000" : "#FFF",
-              }}
-              contentArrowStyle={{ borderRight: "7px solid rgb(33, 150, 243)" }}
-              date={
-                moment(fileDate).format("ddd MMMM Do YYYY, h:mm:ss a") +
-                " -- " +
-                moment(fileDate).startOf("day").fromNow()
-              }
-              iconStyle={{ background: "rgb(33, 150, 243)", color: "#fff" }}
-              icon={<SchoolIcon />}
-            >
-              <LazyEmbed
-                src={
-                  data.url || data.publicUrl || `/api/minio/file/${data.name}`
-                }
-                contentType={data.contentType}
-                ratio="4:3"
-              />
-              <h3 className="vertical-timeline-element-title">
-                Title: {data.name.split(".")[0]}
-              </h3>
-              <h4 className="vertical-timeline-element-subtitle">
-                Size: {(data.size / 1024 / 1024).toFixed(2)} MB
-              </h4>
-              <p>{this.getQuote()}</p>
-            </VerticalTimelineElement>
+            <TimelineItem
+              key={`${data.name}-${index}`} // More stable key
+              data={data}
+              index={index}
+              fileDate={fileDate}
+              backgroundColor={colorAndQuote.backgroundColor}
+              textColor={colorAndQuote.textColor}
+              quote={colorAndQuote.quote}
+            />
           );
         })}
         <VerticalTimelineElement
@@ -348,6 +350,8 @@ class HomePage extends Component {
   }
 
   render() {
+    const titleColor = `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`;
+    
     return (
       <>
         <Head>
@@ -370,29 +374,26 @@ class HomePage extends Component {
             justifyContent: "center",
           }}
         >
-          {/* Background particles */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100vw",
-              height: "100vh",
-              zIndex: -1,
-            }}
-          >
-            <ParticlesBg type="random" bg={true} />
-          </div>
-
-          {/* Audio controls - positioned at top right */}
-          <div style={styles.audioControlContainer}>
-            {this.renderAudioControls()}
-          </div>
+          {/* Background particles - only render if enabled */}
+          {this.state.particlesEnabled && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: -1,
+              }}
+            >
+              <ParticlesBg type="random" num={30} bg={true} />
+            </div>
+          )}
 
           <h1
             style={{
               textAlign: "center",
-              color: `rgb(${this.randomColor()}, ${this.randomColor()}, ${this.randomColor()})`,
+              color: titleColor,
               fontSize: 50,
             }}
           >
@@ -407,48 +408,5 @@ class HomePage extends Component {
     );
   }
 }
-
-// Styles for audio controls
-const styles = {
-  audioControlContainer: {
-    position: "fixed",
-    top: 60,
-    right: 20,
-    zIndex: 1000,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    borderRadius: 8,
-    padding: 12,
-  },
-  audioButton: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: "#4CAF50",
-    color: "white",
-    border: "none",
-    borderRadius: 6,
-    padding: "12px 16px",
-    cursor: "pointer",
-    fontSize: "14px",
-    fontWeight: "bold",
-    transition: "background-color 0.3s",
-  },
-  audioControl: {
-    display: "flex",
-    alignItems: "center",
-    color: "white",
-    fontSize: "14px",
-  },
-  smallButton: {
-    backgroundColor: "transparent",
-    color: "white",
-    border: "1px solid white",
-    borderRadius: 4,
-    padding: 6,
-    marginLeft: 8,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-  },
-};
 
 export default HomePage;
