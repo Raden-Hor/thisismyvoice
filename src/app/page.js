@@ -159,7 +159,6 @@ class HomePage extends Component {
       isPlaying: false,
       showPlayButton: true,
       loading: true,
-      particlesEnabled: true,
     };
 
     // Pre-generate colors and quotes to avoid re-computation
@@ -172,11 +171,6 @@ class HomePage extends Component {
 
     // Add structured data
     this.addStructuredData();
-
-    // Performance optimization: Disable particles on mobile
-    if (window.innerWidth < 768) {
-      this.setState({ particlesEnabled: false });
-    }
   }
 
   // Pre-generate colors and quotes to avoid re-computation
@@ -381,20 +375,18 @@ class HomePage extends Component {
           }}
         >
           {/* Background particles - only render if enabled */}
-          {this.state.particlesEnabled && (
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                width: "100vw",
-                height: "100vh",
-                zIndex: -1,
-              }}
-            >
-              <ParticlesBg type="random" num={30} bg={true} />
-            </div>
-          )}
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              zIndex: -1,
+            }}
+          >
+            <ParticlesBg type="random" num={30} bg={true} />
+          </div>
 
           <h1
             style={{
